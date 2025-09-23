@@ -58,6 +58,17 @@
             display: inline-block;
             margin-right: 8px;
         }
+        .item-image {
+            max-width: 50px;
+            max-height: 50px;
+            object-fit: cover;
+            cursor: pointer;
+        }
+        .modal-image {
+            max-width: 100%;
+            max-height: 300px;
+            object-fit: contain;
+        }
     </style>
 </head>
 <body class="bg-gray-50 min-h-screen p-4 font-sans">
@@ -99,6 +110,7 @@
             <table id="itemsTable" class="w-full mb-4 border-collapse">
                 <thead>
                     <tr class="bg-gray-100">
+                        <th class="p-2">圖片</th>
                         <th class="p-2 cursor-pointer" onclick="sortItems('name')">名稱</th>
                         <th class="p-2 cursor-pointer" onclick="sortItems('quantity')">數量</th>
                         <th class="p-2 cursor-pointer" onclick="sortItems('entryDate')">存入日期</th>
@@ -117,9 +129,18 @@
                 <input id="itemExpDate" type="date" placeholder="有效日期" class="w-full p-2 border rounded">
                 <input id="itemPlace" type="text" placeholder="購買地" class="w-full p-2 border rounded">
                 <textarea id="itemNote" placeholder="備註" class="w-full p-2 border rounded"></textarea>
+                <input id="itemImage" type="file" accept="image/*" class="w-full p-2 border rounded">
                 <button type="submit" class="px-4 py-2 bg-primary text-white rounded">新增物品</button>
             </form>
             <button id="closeModal" class="mt-4 px-4 py-2 bg-secondary text-white rounded float-right">關閉</button>
+        </div>
+    </div>
+
+    <!-- 圖片預覽模態 -->
+    <div id="imagePreviewModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+        <div class="bg-white p-6 rounded-lg w-11/12 max-w-lg">
+            <img id="previewImage" class="modal-image mx-auto" src="" alt="物品圖片">
+            <button id="closeImagePreview" class="mt-4 px-4 py-2 bg-secondary text-white rounded">關閉</button>
         </div>
     </div>
 
@@ -172,7 +193,7 @@
         let selectedCells = [];
         let editingCabinet = false;
         let editingCabinetId = null;
-        let mergeHistory = []; // 儲存合併操作的歷史記錄
+        let mergeHistory = [];
 
         // 儲存資料
         function saveData() {
@@ -273,7 +294,7 @@
             document.getElementById('cabinetsPage').classList.add('hidden');
             document.getElementById('cellsPage').classList.remove('hidden');
             document.getElementById('currentCabinet').textContent = data.areas[currentAreaId].cabinets[cabId].name;
-            mergeHistory = []; // 清空歷史記錄
+            mergeHistory = [];
             renderCells();
             updateButtonVisibility();
         }
@@ -343,7 +364,7 @@
             const cab = data.areas[currentAreaId].cabinets[currentCabinetId];
             const cellData = cab.cells_data[cellId] || { merged: false };
             if (editMode && cellData.merged) {
-                selectedCells = [cellId]; // 僅允許選擇一個合併格
+                selectedCells = [cellId];
                 document.querySelectorAll('.grid-cell').forEach(cell => cell.classList.remove('selected'));
                 element.classList.add('selected');
             } else if (editMode) {
@@ -390,7 +411,6 @@
             const cells = cab.cells_data || {};
             const mergedId = selectedCells[0];
             let mergedItems = [];
-            // 保存合併前的狀態以便復原
             const historyEntry = { mergedId, cells: {} };
             selectedCells.forEach(id => {
                 if (cells[id]) {
@@ -421,11 +441,9 @@
             const lastMerge = mergeHistory.pop();
             const cab = data.areas[currentAreaId].cabinets[currentCabinetId];
             const cells = cab.cells_data || {};
-            // 恢復合併前的儲存格狀態
             Object.entries(lastMerge.cells).forEach(([id, cellData]) => {
                 cells[id] = { ...cellData };
             });
-            // 移除合併後的儲存格
             delete cells[lastMerge.mergedId];
             saveData();
             selectedCells = [];
@@ -450,10 +468,8 @@
             }
             const [row, col] = cellId.split('-').map(Number);
             const { row: rowSpan, col: colSpan } = cellData.span;
-            // 保存分拆前的狀態以便復原
             const historyEntry = { mergedId: cellId, cells: { [cellId]: { ...cellData } } };
             mergeHistory.push(historyEntry);
-            // 將物品移到第一個格子
             for (let i = row; i < row + rowSpan; i++) {
                 for (let j = col; j < col + colSpan; j++) {
                     const newCellId = `${i}-${j}`;
@@ -484,16 +500,39 @@
             const list = document.getElementById('itemsList');
             list.innerHTML = items.map((item, idx) => `
                 <tr class="border-b">
+                    <td class="p-2">
+                        ${item.image ? `<img src="${item.image}" class="item-image" onclick="previewImage('${item.image.replace(/"/g, '\\"')}')">` : '無圖片'}
+                    </td>
                     <td class="p-2">${item.name}</td>
                     <td class="p-2">${item.quantity || ''}</td>
                     <td class="p-2">${item.entryDate || ''}</td>
                     <td class="p-2">${item.expiryDate || ''}</td>
                     <td class="p-2">${item.purchasePlace || ''}</td>
                     <td class="p-2">${item.notes || ''}</td>
-                    <td class="p-2"><button onclick="deleteItem(${idx})" class="text-red-500">刪除</button></td>
+                    <td class="p-2">
+                        ${item.image ? `<button onclick="removeImage(${idx})" class="text-blue-500 ml-1">刪除圖片</button>` : ''}
+                        <button onclick="deleteItem(${idx})" class="text-red-500">刪除</button>
+                    </td>
                 </tr>
             `).join('');
             document.getElementById('itemModal').classList.remove('hidden');
+        }
+
+        // 刪除圖片
+        function removeImage(index) {
+            if (confirm('確定要刪除這張照片嗎？物品其他資訊將保留。')) {
+                const cab = data.areas[currentAreaId].cabinets[currentCabinetId];
+                const item = cab.cells_data[currentCellId].items[index];
+                item.image = ''; // 僅移除圖片
+                saveData();
+                openItemModal(currentCellId); // 重新渲染表格
+            }
+        }
+
+        // 預覽圖片
+        function previewImage(imageSrc) {
+            document.getElementById('previewImage').src = imageSrc;
+            document.getElementById('imagePreviewModal').classList.remove('hidden');
         }
 
         // 新增物品
@@ -505,12 +544,28 @@
                 entryDate: document.getElementById('itemInDate').value || '',
                 expiryDate: document.getElementById('itemExpDate').value || '',
                 purchasePlace: document.getElementById('itemPlace').value || '',
-                notes: document.getElementById('itemNote').value || ''
+                notes: document.getElementById('itemNote').value || '',
+                image: ''
             };
             if (!item.name) {
                 alert('物品名稱為必填！');
                 return;
             }
+            const imageInput = document.getElementById('itemImage');
+            if (imageInput.files && imageInput.files[0]) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    item.image = e.target.result;
+                    saveItem(item);
+                };
+                reader.readAsDataURL(imageInput.files[0]);
+            } else {
+                saveItem(item);
+            }
+        });
+
+        // 保存物品
+        function saveItem(item) {
             const cab = data.areas[currentAreaId].cabinets[currentCabinetId];
             if (!cab.cells_data) cab.cells_data = {};
             if (!cab.cells_data[currentCellId]) {
@@ -522,17 +577,19 @@
             document.getElementById('itemModal').classList.add('hidden');
             renderCells();
             checkReminders();
-        });
+        }
 
         // 刪除物品
         function deleteItem(index) {
-            const cab = data.areas[currentAreaId].cabinets[currentCabinetId];
-            cab.cells_data[currentCellId].items.splice(index, 1);
-            if (cab.cells_data[currentCellId].items.length === 0) {
-                delete cab.cells_data[currentCellId];
+            if (confirm('確定要刪除這個物品嗎？')) {
+                const cab = data.areas[currentAreaId].cabinets[currentCabinetId];
+                cab.cells_data[currentCellId].items.splice(index, 1);
+                if (cab.cells_data[currentCellId].items.length === 0) {
+                    delete cab.cells_data[currentCellId];
+                }
+                saveData();
+                openItemModal(currentCellId);
             }
-            saveData();
-            openItemModal(currentCellId);
         }
 
         // 排序物品
@@ -737,6 +794,11 @@
         // 分拆網格按鈕
         document.getElementById('splitCellBtn').onclick = () => {
             splitCell();
+        };
+
+        // 關閉圖片預覽
+        document.getElementById('closeImagePreview').onclick = () => {
+            document.getElementById('imagePreviewModal').classList.add('hidden');
         };
 
         // 事件綁定
