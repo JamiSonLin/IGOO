@@ -85,7 +85,11 @@
         <button id="backToCabinets" class="mb-4 px-4 py-2 bg-secondary text-white rounded-lg">返回櫃體</button>
         <h3 id="currentCabinet" class="text-lg font-semibold mb-4"></h3>
         <div id="cellsGrid" class="grid gap-1 mb-4"></div>
-        <button id="editGridBtn" class="px-4 py-2 bg-accent text-white rounded-lg">編輯網格</button>
+        <div class="flex gap-2">
+            <button id="editGridBtn" class="px-4 py-2 bg-accent text-white rounded-lg">編輯網格</button>
+            <button id="undoMergeBtn" class="px-4 py-2 bg-secondary text-white rounded-lg hidden">復原合併</button>
+            <button id="splitCellBtn" class="px-4 py-2 bg-red-500 text-white rounded-lg hidden">分拆網格</button>
+        </div>
     </div>
 
     <!-- 物品詳情模態 -->
@@ -168,6 +172,7 @@
         let selectedCells = [];
         let editingCabinet = false;
         let editingCabinetId = null;
+        let mergeHistory = []; // 儲存合併操作的歷史記錄
 
         // 儲存資料
         function saveData() {
@@ -268,7 +273,17 @@
             document.getElementById('cabinetsPage').classList.add('hidden');
             document.getElementById('cellsPage').classList.remove('hidden');
             document.getElementById('currentCabinet').textContent = data.areas[currentAreaId].cabinets[cabId].name;
+            mergeHistory = []; // 清空歷史記錄
             renderCells();
+            updateButtonVisibility();
+        }
+
+        // 更新按鈕可見性
+        function updateButtonVisibility() {
+            const undoBtn = document.getElementById('undoMergeBtn');
+            const splitBtn = document.getElementById('splitCellBtn');
+            undoBtn.classList.toggle('hidden', mergeHistory.length === 0);
+            splitBtn.classList.toggle('hidden', !editMode);
         }
 
         // 渲染儲存格
@@ -320,16 +335,25 @@
                     container.appendChild(cell);
                 }
             }
+            updateButtonVisibility();
         }
 
         // 選擇儲存格
         function selectCell(cellId, element) {
-            if (selectedCells.includes(cellId)) {
-                selectedCells = selectedCells.filter(id => id !== cellId);
-                element.classList.remove('selected');
-            } else {
-                selectedCells.push(cellId);
+            const cab = data.areas[currentAreaId].cabinets[currentCabinetId];
+            const cellData = cab.cells_data[cellId] || { merged: false };
+            if (editMode && cellData.merged) {
+                selectedCells = [cellId]; // 僅允許選擇一個合併格
+                document.querySelectorAll('.grid-cell').forEach(cell => cell.classList.remove('selected'));
                 element.classList.add('selected');
+            } else if (editMode) {
+                if (selectedCells.includes(cellId)) {
+                    selectedCells = selectedCells.filter(id => id !== cellId);
+                    element.classList.remove('selected');
+                } else {
+                    selectedCells.push(cellId);
+                    element.classList.add('selected');
+                }
             }
             renderCells();
         }
@@ -366,10 +390,16 @@
             const cells = cab.cells_data || {};
             const mergedId = selectedCells[0];
             let mergedItems = [];
+            // 保存合併前的狀態以便復原
+            const historyEntry = { mergedId, cells: {} };
             selectedCells.forEach(id => {
-                if (cells[id] && cells[id].items) {
-                    mergedItems = [...mergedItems, ...cells[id].items];
+                if (cells[id]) {
+                    historyEntry.cells[id] = { ...cells[id] };
+                    mergedItems = [...mergedItems, ...(cells[id].items || [])];
                 }
+            });
+            mergeHistory.push(historyEntry);
+            selectedCells.forEach(id => {
                 if (id !== mergedId) delete cells[id];
             });
             cells[mergedId] = {
@@ -377,6 +407,64 @@
                 merged: true,
                 span: { row: rowSpan, col: colSpan }
             };
+            cab.cells_data = cells;
+            saveData();
+            selectedCells = [];
+            editMode = false;
+            document.getElementById('editGridBtn').textContent = '編輯網格';
+            renderCells();
+        }
+
+        // 復原合併
+        function undoMerge() {
+            if (mergeHistory.length === 0) return;
+            const lastMerge = mergeHistory.pop();
+            const cab = data.areas[currentAreaId].cabinets[currentCabinetId];
+            const cells = cab.cells_data || {};
+            // 恢復合併前的儲存格狀態
+            Object.entries(lastMerge.cells).forEach(([id, cellData]) => {
+                cells[id] = { ...cellData };
+            });
+            // 移除合併後的儲存格
+            delete cells[lastMerge.mergedId];
+            saveData();
+            selectedCells = [];
+            editMode = false;
+            document.getElementById('editGridBtn').textContent = '編輯網格';
+            renderCells();
+        }
+
+        // 分拆合併的儲存格
+        function splitCell() {
+            if (selectedCells.length !== 1) {
+                alert('請選取一個已合併的格子進行分拆！');
+                return;
+            }
+            const cellId = selectedCells[0];
+            const cab = data.areas[currentAreaId].cabinets[currentCabinetId];
+            const cells = cab.cells_data || {};
+            const cellData = cells[cellId];
+            if (!cellData || !cellData.merged) {
+                alert('選取的格子未合併！');
+                return;
+            }
+            const [row, col] = cellId.split('-').map(Number);
+            const { row: rowSpan, col: colSpan } = cellData.span;
+            // 保存分拆前的狀態以便復原
+            const historyEntry = { mergedId: cellId, cells: { [cellId]: { ...cellData } } };
+            mergeHistory.push(historyEntry);
+            // 將物品移到第一個格子
+            for (let i = row; i < row + rowSpan; i++) {
+                for (let j = col; j < col + colSpan; j++) {
+                    const newCellId = `${i}-${j}`;
+                    cells[newCellId] = {
+                        items: i === row && j === col ? cellData.items : [],
+                        merged: false,
+                        span: { row: 1, col: 1 }
+                    };
+                }
+            }
+            delete cells[cellId];
             cab.cells_data = cells;
             saveData();
             selectedCells = [];
@@ -634,11 +722,21 @@
         document.getElementById('editGridBtn').onclick = () => {
             editMode = !editMode;
             document.getElementById('editGridBtn').textContent = editMode ? '完成編輯 (合併選取格子)' : '編輯網格';
-            if (!editMode && selectedCells.length > 0) {
+            if (!editMode && selectedCells.length > 0 && !selectedCells.some(id => data.areas[currentAreaId].cabinets[currentCabinetId].cells_data[id]?.merged)) {
                 mergeCells();
             }
             selectedCells = [];
             renderCells();
+        };
+
+        // 復原合併按鈕
+        document.getElementById('undoMergeBtn').onclick = () => {
+            undoMerge();
+        };
+
+        // 分拆網格按鈕
+        document.getElementById('splitCellBtn').onclick = () => {
+            splitCell();
         };
 
         // 事件綁定
