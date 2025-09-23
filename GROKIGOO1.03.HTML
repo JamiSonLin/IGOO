@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>櫃體置物管理應用程式</title>
+    <!-- Google Fonts: Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    colors: {
+                        primary: '#3B82F6', // 藍色
+                        secondary: '#6B7280', // 灰色
+                        accent: '#F59E0B' // 橘色提醒
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .grid-cell {
+            border: 1px solid #d1d5db;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            text-align: center;
+            min-height: 50px;
+        }
+        .merged { background-color: #f3f4f6; }
+        .selected { background-color: #bfdbfe !important; }
+        .scroll-container {
+            display: flex;
+            overflow-x: auto;
+            white-space: nowrap;
+            padding: 2px;
+            width: 100%;
+            font-size: 0.75rem;
+            scrollbar-width: thin;
+            scrollbar-color: #6B7280 #e5e7eb;
+        }
+        .scroll-container::-webkit-scrollbar {
+            height: 6px;
+        }
+        .scroll-container::-webkit-scrollbar-track {
+            background: #e5e7eb;
+        }
+        .scroll-container::-webkit-scrollbar-thumb {
+            background: #6B7280;
+            border-radius: 3px;
+        }
+        .scroll-item {
+            display: inline-block;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen p-4 font-sans">
+    <!-- 搜尋與篩選區 -->
+    <div id="searchBar" class="mb-4 flex flex-col sm:flex-row gap-2">
+        <input id="searchName" type="text" placeholder="搜尋物品名稱..." class="flex-1 p-2 border rounded-lg">
+        <input id="searchDate" type="date" class="p-2 border rounded-lg">
+        <button id="searchBtn" class="px-4 py-2 bg-primary text-white rounded-lg">搜尋</button>
+    </div>
+
+    <!-- 區域分類頁面 -->
+    <div id="areasPage" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 mb-4"></div>
+    <button id="addAreaBtn" class="px-4 py-2 bg-primary text-white rounded-lg mb-4">新增區域</button>
+
+    <!-- 櫃體頁面 -->
+    <div id="cabinetsPage" class="hidden">
+        <button id="backToAreas" class="mb-4 px-4 py-2 bg-secondary text-white rounded-lg">返回區域</button>
+        <h2 id="currentArea" class="text-xl font-semibold mb-4"></h2>
+        <div id="cabinetsGrid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-4"></div>
+        <button id="addCabinetBtn" class="px-4 py-2 bg-primary text-white rounded-lg">新增櫃體</button>
+    </div>
+
+    <!-- 儲存格頁面 -->
+    <div id="cellsPage" class="hidden">
+        <button id="backToCabinets" class="mb-4 px-4 py-2 bg-secondary text-white rounded-lg">返回櫃體</button>
+        <h3 id="currentCabinet" class="text-lg font-semibold mb-4"></h3>
+        <div id="cellsGrid" class="grid gap-1 mb-4"></div>
+        <button id="editGridBtn" class="px-4 py-2 bg-accent text-white rounded-lg">編輯網格</button>
+    </div>
+
+    <!-- 物品詳情模態 -->
+    <div id="itemModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+        <div class="bg-white p-6 rounded-lg w-11/12 max-w-lg max-h-[80vh] overflow-y-auto">
+            <h4 id="modalTitle" class="text-lg font-semibold mb-4"></h4>
+            <table id="itemsTable" class="w-full mb-4 border-collapse">
+                <thead>
+                    <tr class="bg-gray-100">
+                        <th class="p-2 cursor-pointer" onclick="sortItems('name')">名稱</th>
+                        <th class="p-2 cursor-pointer" onclick="sortItems('quantity')">數量</th>
+                        <th class="p-2 cursor-pointer" onclick="sortItems('entryDate')">存入日期</th>
+                        <th class="p-2 cursor-pointer" onclick="sortItems('expiryDate')">有效日期</th>
+                        <th class="p-2 cursor-pointer" onclick="sortItems('purchasePlace')">購買地</th>
+                        <th class="p-2">備註</th>
+                        <th class="p-2">操作</th>
+                    </tr>
+                </thead>
+                <tbody id="itemsList"></tbody>
+            </table>
+            <form id="itemForm" class="space-y-2">
+                <input id="itemName" type="text" placeholder="物品名稱 (必填)" class="w-full p-2 border rounded" required>
+                <input id="itemQty" type="number" placeholder="數量" class="w-full p-2 border rounded">
+                <input id="itemInDate" type="date" placeholder="存入日期" class="w-full p-2 border rounded">
+                <input id="itemExpDate" type="date" placeholder="有效日期" class="w-full p-2 border rounded">
+                <input id="itemPlace" type="text" placeholder="購買地" class="w-full p-2 border rounded">
+                <textarea id="itemNote" placeholder="備註" class="w-full p-2 border rounded"></textarea>
+                <button type="submit" class="px-4 py-2 bg-primary text-white rounded">新增物品</button>
+            </form>
+            <button id="closeModal" class="mt-4 px-4 py-2 bg-secondary text-white rounded float-right">關閉</button>
+        </div>
+    </div>
+
+    <!-- 新增/編輯區域/櫃體模態 -->
+    <div id="addModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+        <div class="bg-white p-6 rounded-lg w-11/12 max-w-md">
+            <h4 id="addTitle" class="text-lg font-semibold mb-4"></h4>
+            <input id="addInput" type="text" placeholder="名稱" class="w-full p-2 border rounded mb-2">
+            <select id="cabinetType" class="w-full p-2 border rounded mb-2 hidden">
+                <option value="L">L-型</option>
+                <option value="straight">一字形</option>
+                <option value="U">U-型</option>
+                <option value="square">口-型</option>
+            </select>
+            <div id="dimensionsInputs" class="space-y-2"></div>
+            <div class="flex gap-2 mt-4">
+                <button id="saveAdd" class="px-4 py-2 bg-primary text-white rounded">儲存</button>
+                <button id="deleteAdd" class="px-4 py-2 bg-red-500 text-white rounded hidden">刪除</button>
+                <button id="cancelAdd" class="px-4 py-2 bg-secondary text-white rounded">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 到期提醒模態 -->
+    <div id="reminderModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+        <div class="bg-white p-6 rounded-lg w-11/12 max-w-md">
+            <h4 class="text-lg font-semibold mb-4">到期提醒</h4>
+            <div id="reminderList" class="mb-4"></div>
+            <button id="closeReminder" class="px-4 py-2 bg-primary text-white rounded">確認</button>
+        </div>
+    </div>
+
+    <script>
+        // 預設區域
+        const defaultAreas = [
+            '客廳', '廚房', '玄關', '浴室', '樓下房間', '書房', '樓上小孩房', '主臥室'
+        ];
+
+        // 全域資料 (使用 localStorage)
+        let data = JSON.parse(localStorage.getItem('cabinetApp')) || {
+            areas: defaultAreas.reduce((acc, name) => {
+                acc[name.toLowerCase().replace(/\s/g, '-')] = { name, cabinets: {} };
+                return acc;
+            }, {})
+        };
+        let currentAreaId = null;
+        let currentCabinetId = null;
+        let currentCellId = null;
+        let editMode = false;
+        let selectedCells = [];
+        let editingCabinet = false;
+        let editingCabinetId = null;
+
+        // 儲存資料
+        function saveData() {
+            localStorage.setItem('cabinetApp', JSON.stringify(data));
+        }
+
+        // 渲染區域頁面
+        function renderAreasPage() {
+            document.getElementById('areasPage').classList.remove('hidden');
+            document.getElementById('cabinetsPage').classList.add('hidden');
+            document.getElementById('cellsPage').classList.add('hidden');
+            const container = document.getElementById('areasPage');
+            container.innerHTML = Object.entries(data.areas).map(([id, area]) => `
+                <div class="bg-white p-4 rounded-lg shadow-md cursor-pointer hover:shadow-lg" onclick="enterArea('${id}')">
+                    <h3 class="text-lg font-medium">${area.name}</h3>
+                    <button onclick="editArea('${id}', event)" class="float-right text-secondary hover:text-primary">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                        </svg>
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        // 進入區域
+        function enterArea(areaId) {
+            currentAreaId = areaId;
+            document.getElementById('areasPage').classList.add('hidden');
+            document.getElementById('cabinetsPage').classList.remove('hidden');
+            document.getElementById('currentArea').textContent = data.areas[areaId].name;
+            renderCabinets();
+        }
+
+        // 渲染櫃體
+        function renderCabinets() {
+            const cabinets = data.areas[currentAreaId].cabinets;
+            const container = document.getElementById('cabinetsGrid');
+            container.innerHTML = Object.entries(cabinets).map(([id, cab]) => `
+                <div class="bg-white p-4 rounded-lg shadow-md">
+                    <h3 class="text-lg font-medium">${cab.name}</h3>
+                    <p class="text-sm text-secondary">類型: ${cab.type}</p>
+                    <button onclick="enterCabinet('${id}')" class="mt-2 px-3 py-1 bg-primary text-white rounded">查看</button>
+                    <button onclick="editCabinet('${id}', event)" class="mt-2 px-3 py-1 bg-accent text-white rounded ml-2">編輯</button>
+                    <button onclick="deleteCabinet('${id}', event)" class="mt-2 px-3 py-1 bg-red-500 text-white rounded ml-2">刪除</button>
+                </div>
+            `).join('');
+        }
+
+        // 編輯櫃體
+        function editCabinet(cabId, event) {
+            event.stopPropagation();
+            editingCabinet = true;
+            editingCabinetId = cabId;
+            const cab = data.areas[currentAreaId].cabinets[cabId];
+            document.getElementById('addTitle').textContent = '編輯櫃體';
+            document.getElementById('addInput').value = cab.name;
+            document.getElementById('cabinetType').classList.remove('hidden');
+            document.getElementById('cabinetType').value = cab.type;
+            document.getElementById('deleteAdd').classList.remove('hidden');
+            updateDimensionsInputs(cab.dimensions);
+            document.getElementById('addModal').classList.remove('hidden');
+        }
+
+        // 更新尺寸輸入框
+        function updateDimensionsInputs(dimensions = {}) {
+            const type = document.getElementById('cabinetType').value;
+            const inputs = document.getElementById('dimensionsInputs');
+            inputs.innerHTML = '';
+            if (type === 'L') {
+                inputs.innerHTML = `
+                    <input type="text" placeholder="短L規格 (e.g., 3x3 or 3X3)" class="w-full p-2 border rounded mb-2" value="${dimensions.short || ''}">
+                    <input type="text" placeholder="長L規格 (e.g., 4x3 or 4X3)" class="w-full p-2 border rounded" value="${dimensions.long || ''}">
+                `;
+            } else if (type === 'straight') {
+                inputs.innerHTML = `<input type="text" placeholder="規格 (e.g., 3x3 or 3X3)" class="w-full p-2 border rounded" value="${dimensions.size || ''}">`;
+            } else if (type === 'U' || type === 'square') {
+                const sides = type === 'U' ? 3 : 4;
+                for (let i = 1; i <= sides; i++) {
+                    inputs.innerHTML += `<input type="text" placeholder="面${i}規格 (e.g., 3x3 or 3X3)" class="w-full p-2 border rounded mb-2" value="${dimensions[`side${i}`] || ''}">`;
+                }
+            }
+        }
+
+        // 刪除櫃體
+        function deleteCabinet(cabId, event) {
+            event.stopPropagation();
+            if (confirm('確定要刪除這個櫃體嗎？')) {
+                delete data.areas[currentAreaId].cabinets[cabId];
+                saveData();
+                renderCabinets();
+            }
+        }
+
+        // 進入櫃體
+        function enterCabinet(cabId) {
+            currentCabinetId = cabId;
+            document.getElementById('cabinetsPage').classList.add('hidden');
+            document.getElementById('cellsPage').classList.remove('hidden');
+            document.getElementById('currentCabinet').textContent = data.areas[currentAreaId].cabinets[cabId].name;
+            renderCells();
+        }
+
+        // 渲染儲存格
+        function renderCells() {
+            const cab = data.areas[currentAreaId].cabinets[currentCabinetId];
+            let sizeStr = cab.dimensions.size ? cab.dimensions.size.toLowerCase() : '3x3';
+            const dimensions = sizeStr.split('x');
+            const rows = parseInt(dimensions[0]) || 3;
+            const cols = parseInt(dimensions[1]) || 3;
+            const container = document.getElementById('cellsGrid');
+            container.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
+            container.innerHTML = '';
+            const renderedCells = new Set();
+
+            for (let i = 0; i < rows; i++) {
+                for (let j = 0; j < cols; j++) {
+                    const cellId = `${i}-${j}`;
+                    if (renderedCells.has(cellId)) continue;
+                    const cellData = cab.cells_data[cellId] || { items: [], merged: false, span: { row: 1, col: 1 } };
+                    const items = cellData.items;
+                    const bgColor = items.some(item => isExpiringSoon(item.expiryDate)) ? 'bg-accent' : 'bg-gray-100';
+                    const cell = document.createElement('div');
+                    cell.className = `grid-cell p-2 ${bgColor} rounded text-xs ${cellData.merged ? 'merged' : ''} ${selectedCells.includes(cellId) ? 'selected' : ''}`;
+                    const scrollContainer = document.createElement('div');
+                    scrollContainer.className = 'scroll-container';
+                    if (items.length === 0) {
+                        scrollContainer.textContent = '空';
+                    } else {
+                        items.forEach(item => {
+                            const itemSpan = document.createElement('span');
+                            itemSpan.className = 'scroll-item';
+                            itemSpan.textContent = item.name;
+                            scrollContainer.appendChild(itemSpan);
+                        });
+                    }
+                    cell.appendChild(scrollContainer);
+                    if (cellData.merged) {
+                        cell.style.gridRow = `span ${cellData.span.row}`;
+                        cell.style.gridColumn = `span ${cellData.span.col}`;
+                        for (let ri = i; ri < i + cellData.span.row; ri++) {
+                            for (let cj = j; cj < j + cellData.span.col; cj++) {
+                                renderedCells.add(`${ri}-${cj}`);
+                            }
+                        }
+                    } else {
+                        renderedCells.add(cellId);
+                    }
+                    cell.onclick = () => editMode ? selectCell(cellId, cell) : openItemModal(cellId);
+                    container.appendChild(cell);
+                }
+            }
+        }
+
+        // 選擇儲存格
+        function selectCell(cellId, element) {
+            if (selectedCells.includes(cellId)) {
+                selectedCells = selectedCells.filter(id => id !== cellId);
+                element.classList.remove('selected');
+            } else {
+                selectedCells.push(cellId);
+                element.classList.add('selected');
+            }
+            renderCells();
+        }
+
+        // 合併儲存格
+        function mergeCells() {
+            if (selectedCells.length < 2) {
+                alert('請選取至少2個相鄰格子！');
+                return;
+            }
+            const positions = selectedCells.map(id => id.split('-').map(Number));
+            const minRow = Math.min(...positions.map(p => p[0]));
+            const maxRow = Math.max(...positions.map(p => p[0]));
+            const minCol = Math.min(...positions.map(p => p[1]));
+            const maxCol = Math.max(...positions.map(p => p[1]));
+            const rowSpan = maxRow - minRow + 1;
+            const colSpan = maxCol - minCol + 1;
+            const expectedCount = rowSpan * colSpan;
+            if (selectedCells.length !== expectedCount) {
+                alert('請選取完整相鄰矩形！');
+                return;
+            }
+            const requiredCells = [];
+            for (let i = minRow; i <= maxRow; i++) {
+                for (let j = minCol; j <= maxCol; j++) {
+                    requiredCells.push(`${i}-${j}`);
+                }
+            }
+            if (!requiredCells.every(cell => selectedCells.includes(cell))) {
+                alert('選取的格子必須相鄰且形成矩形！');
+                return;
+            }
+            const cab = data.areas[currentAreaId].cabinets[currentCabinetId];
+            const cells = cab.cells_data || {};
+            const mergedId = selectedCells[0];
+            let mergedItems = [];
+            selectedCells.forEach(id => {
+                if (cells[id] && cells[id].items) {
+                    mergedItems = [...mergedItems, ...cells[id].items];
+                }
+                if (id !== mergedId) delete cells[id];
+            });
+            cells[mergedId] = {
+                items: mergedItems,
+                merged: true,
+                span: { row: rowSpan, col: colSpan }
+            };
+            cab.cells_data = cells;
+            saveData();
+            selectedCells = [];
+            editMode = false;
+            document.getElementById('editGridBtn').textContent = '編輯網格';
+            renderCells();
+        }
+
+        // 開啟物品模態
+        function openItemModal(cellId) {
+            currentCellId = cellId;
+            const cab = data.areas[currentAreaId].cabinets[currentCabinetId];
+            const cells = cab.cells_data || {};
+            const cellData = cells[cellId] || { items: [], merged: false, span: { row: 1, col: 1 } };
+            const items = cellData.items;
+            document.getElementById('modalTitle').textContent = `儲存格 ${cellId}`;
+            const list = document.getElementById('itemsList');
+            list.innerHTML = items.map((item, idx) => `
+                <tr class="border-b">
+                    <td class="p-2">${item.name}</td>
+                    <td class="p-2">${item.quantity || ''}</td>
+                    <td class="p-2">${item.entryDate || ''}</td>
+                    <td class="p-2">${item.expiryDate || ''}</td>
+                    <td class="p-2">${item.purchasePlace || ''}</td>
+                    <td class="p-2">${item.notes || ''}</td>
+                    <td class="p-2"><button onclick="deleteItem(${idx})" class="text-red-500">刪除</button></td>
+                </tr>
+            `).join('');
+            document.getElementById('itemModal').classList.remove('hidden');
+        }
+
+        // 新增物品
+        document.getElementById('itemForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const item = {
+                name: document.getElementById('itemName').value.trim(),
+                quantity: document.getElementById('itemQty').value || '',
+                entryDate: document.getElementById('itemInDate').value || '',
+                expiryDate: document.getElementById('itemExpDate').value || '',
+                purchasePlace: document.getElementById('itemPlace').value || '',
+                notes: document.getElementById('itemNote').value || ''
+            };
+            if (!item.name) {
+                alert('物品名稱為必填！');
+                return;
+            }
+            const cab = data.areas[currentAreaId].cabinets[currentCabinetId];
+            if (!cab.cells_data) cab.cells_data = {};
+            if (!cab.cells_data[currentCellId]) {
+                cab.cells_data[currentCellId] = { items: [], merged: false, span: { row: 1, col: 1 } };
+            }
+            cab.cells_data[currentCellId].items.push(item);
+            saveData();
+            document.getElementById('itemForm').reset();
+            document.getElementById('itemModal').classList.add('hidden');
+            renderCells();
+            checkReminders();
+        });
+
+        // 刪除物品
+        function deleteItem(index) {
+            const cab = data.areas[currentAreaId].cabinets[currentCabinetId];
+            cab.cells_data[currentCellId].items.splice(index, 1);
+            if (cab.cells_data[currentCellId].items.length === 0) {
+                delete cab.cells_data[currentCellId];
+            }
+            saveData();
+            openItemModal(currentCellId);
+        }
+
+        // 排序物品
+        function sortItems(field) {
+            const cab = data.areas[currentAreaId].cabinets[currentCabinetId];
+            const items = cab.cells_data[currentCellId]?.items || [];
+            items.sort((a, b) => {
+                let valA = a[field] || '';
+                let valB = b[field] || '';
+                if (field.includes('Date')) {
+                    valA = new Date(valA).getTime() || 0;
+                    valB = new Date(valB).getTime() || 0;
+                } else if (field === 'quantity') {
+                    valA = parseInt(valA) || 0;
+                    valB = parseInt(valB) || 0;
+                }
+                return valA > valB ? 1 : -1;
+            });
+            saveData();
+            openItemModal(currentCellId);
+        }
+
+        // 新增區域
+        document.getElementById('addAreaBtn').onclick = () => {
+            document.getElementById('addTitle').textContent = '新增區域';
+            document.getElementById('addInput').value = '';
+            document.getElementById('cabinetType').classList.add('hidden');
+            document.getElementById('dimensionsInputs').innerHTML = '';
+            document.getElementById('deleteAdd').classList.add('hidden');
+            document.getElementById('addModal').classList.remove('hidden');
+        };
+
+        // 編輯區域
+        function editArea(areaId, event) {
+            event.stopPropagation();
+            const newName = prompt('輸入新名稱或輸入 "delete" 刪除:', data.areas[areaId].name);
+            if (newName === 'delete') {
+                delete data.areas[areaId];
+            } else if (newName) {
+                data.areas[areaId].name = newName;
+            }
+            saveData();
+            renderAreasPage();
+        }
+
+        // 新增櫃體
+        document.getElementById('addCabinetBtn').onclick = () => {
+            editingCabinet = false;
+            document.getElementById('addTitle').textContent = '新增櫃體';
+            document.getElementById('addInput').value = '';
+            document.getElementById('cabinetType').classList.remove('hidden');
+            document.getElementById('deleteAdd').classList.add('hidden');
+            document.getElementById('dimensionsInputs').innerHTML = '';
+            document.getElementById('addModal').classList.remove('hidden');
+            document.getElementById('cabinetType').onchange = () => updateDimensionsInputs();
+            updateDimensionsInputs();
+        };
+
+        // 儲存新增/編輯
+        document.getElementById('saveAdd').onclick = () => {
+            const name = document.getElementById('addInput').value;
+            if (!name) {
+                alert('請輸入名稱！');
+                return;
+            }
+            if (document.getElementById('addTitle').textContent.includes('區域')) {
+                const areaId = name.toLowerCase().replace(/\s/g, '-');
+                data.areas[areaId] = { name, cabinets: {} };
+                saveData();
+                renderAreasPage();
+            } else {
+                const type = document.getElementById('cabinetType').value;
+                let dimensions = {};
+                if (type === 'L') {
+                    dimensions = {
+                        short: document.querySelector('#dimensionsInputs input:nth-child(1)').value,
+                        long: document.querySelector('#dimensionsInputs input:nth-child(2)').value
+                    };
+                } else if (type === 'straight') {
+                    dimensions = { size: document.querySelector('#dimensionsInputs input').value };
+                } else if (type === 'U' || type === 'square') {
+                    const sides = type === 'U' ? 3 : 4;
+                    for (let i = 1; i <= sides; i++) {
+                        const subName = `${name}${i}`;
+                        const subId = `${name.toLowerCase().replace(/\s/g, '-')}-${i}`;
+                        const subDim = document.querySelector(`#dimensionsInputs input:nth-child(${i})`).value;
+                        data.areas[currentAreaId].cabinets[subId] = {
+                            name: subName,
+                            type,
+                            dimensions: { size: subDim },
+                            cells_data: {}
+                        };
+                    }
+                    saveData();
+                    renderCabinets();
+                    document.getElementById('addModal').classList.add('hidden');
+                    return;
+                }
+                const cabId = editingCabinet ? editingCabinetId : name.toLowerCase().replace(/\s/g, '-');
+                data.areas[currentAreaId].cabinets[cabId] = {
+                    name,
+                    type,
+                    dimensions,
+                    cells_data: data.areas[currentAreaId].cabinets[cabId]?.cells_data || {}
+                };
+                saveData();
+                renderCabinets();
+            }
+            document.getElementById('addModal').classList.add('hidden');
+            editingCabinet = false;
+            editingCabinetId = null;
+        };
+
+        // 刪除櫃體（模態中）
+        document.getElementById('deleteAdd').onclick = () => {
+            if (confirm('確定要刪除這個櫃體嗎？')) {
+                delete data.areas[currentAreaId].cabinets[editingCabinetId];
+                saveData();
+                renderCabinets();
+                document.getElementById('addModal').classList.add('hidden');
+            }
+        };
+
+        // 搜尋功能
+        document.getElementById('searchBtn').onclick = () => {
+            const query = document.getElementById('searchName').value.toLowerCase();
+            const date = document.getElementById('searchDate').value;
+            let results = [];
+            Object.entries(data.areas).forEach(([areaId, area]) => {
+                Object.entries(area.cabinets).forEach(([cabId, cab]) => {
+                    Object.entries(cab.cells_data || {}).forEach(([cellId, cell]) => {
+                        cell.items?.forEach(item => {
+                            if ((query && item.name.toLowerCase().includes(query)) || (date && item.expiryDate === date)) {
+                                results.push({ area: area.name, cabinet: cab.name, cellId, item });
+                            }
+                        });
+                    });
+                });
+            });
+            alert(`搜尋結果：\n${results.map(r => `${r.area} > ${r.cabinet} > ${r.cellId} > ${r.item.name}`).join('\n') || '無結果'}`);
+        };
+
+        // 到期提醒
+        function checkReminders() {
+            const today = new Date();
+            const reminders = [];
+            Object.entries(data.areas).forEach(([areaId, area]) => {
+                Object.entries(area.cabinets).forEach(([cabId, cab]) => {
+                    Object.entries(cab.cells_data || {}).forEach(([cellId, cell]) => {
+                        cell.items?.forEach(item => {
+                            if (item.expiryDate && (new Date(item.expiryDate) - today) / (1000 * 60 * 60 * 24) < 30) {
+                                reminders.push({ area: area.name, cabinet: cab.name, cellId, item: item.name });
+                            }
+                        });
+                    });
+                });
+            });
+            if (reminders.length > 0) {
+                document.getElementById('reminderList').innerHTML = reminders.map(r => `
+                    <p class="cursor-pointer" onclick="navigateToItem('${r.area}', '${r.cabinet}', '${r.cellId}')">
+                        ${r.area} > ${r.cabinet} > ${r.cellId} > ${r.item}
+                    </p>`).join('');
+                document.getElementById('reminderModal').classList.remove('hidden');
+            }
+        }
+
+        function isExpiringSoon(expiryDate) {
+            if (!expiryDate) return false;
+            const today = new Date();
+            return (new Date(expiryDate) - today) / (1000 * 60 * 60 * 24) < 30;
+        }
+
+        // 導航到物品
+        function navigateToItem(areaName, cabinetName, cellId) {
+            const areaId = Object.keys(data.areas).find(id => data.areas[id].name === areaName);
+            const cabId = Object.keys(data.areas[areaId].cabinets).find(id => data.areas[areaId].cabinets[id].name === cabinetName);
+            currentAreaId = areaId;
+            currentCabinetId = cabId;
+            enterArea(areaId);
+            setTimeout(() => {
+                enterCabinet(cabId);
+                setTimeout(() => openItemModal(cellId), 100);
+            }, 100);
+        }
+
+        // 編輯網格
+        document.getElementById('editGridBtn').onclick = () => {
+            editMode = !editMode;
+            document.getElementById('editGridBtn').textContent = editMode ? '完成編輯 (合併選取格子)' : '編輯網格';
+            if (!editMode && selectedCells.length > 0) {
+                mergeCells();
+            }
+            selectedCells = [];
+            renderCells();
+        };
+
+        // 事件綁定
+        document.getElementById('backToAreas').onclick = renderAreasPage;
+        document.getElementById('backToCabinets').onclick = () => {
+            document.getElementById('cellsPage').classList.add('hidden');
+            document.getElementById('cabinetsPage').classList.remove('hidden');
+        };
+        document.getElementById('cancelAdd').onclick = () => {
+            document.getElementById('addModal').classList.add('hidden');
+            editingCabinet = false;
+            editingCabinetId = null;
+        };
+        document.getElementById('closeModal').onclick = () => document.getElementById('itemModal').classList.add('hidden');
+        document.getElementById('closeReminder').onclick = () => document.getElementById('reminderModal').classList.add('hidden');
+        document.getElementById('searchName').addEventListener('input', debounce(() => document.getElementById('searchBtn').click(), 300));
+        document.getElementById('cabinetType').onchange = () => updateDimensionsInputs();
+
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+
+        // 初始化
+        renderAreasPage();
+        checkReminders();
+    </script>
+</body>
+</html>
