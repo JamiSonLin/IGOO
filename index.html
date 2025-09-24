@@ -546,6 +546,7 @@
             const { row: rowSpan, col: colSpan } = cellData.span;
             const historyEntry = { mergedId: cellId, cells: { [cellId]: { ...cellData } } };
             mergeHistory.push(historyEntry);
+            delete cells[cellId];
             for (let i = row; i < row + rowSpan; i++) {
                 for (let j = col; j < col + colSpan; j++) {
                     const newCellId = `${i}-${j}`;
@@ -556,7 +557,6 @@
                     };
                 }
             }
-            delete cells[cellId];
             cab.cells_data = cells;
             saveData();
             selectedCells = [];
