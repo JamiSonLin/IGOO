@@ -85,7 +85,7 @@
 
     <!-- 地點分類頁面 -->
     <div id="locationsPage" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 mb-4">
-        <button id="backToLocations" class="mb-4 px-4 py-2 bg-secondary text-white rounded-lg">返回地點</button>
+        <button id="backToLocations" class="mb-4 px-4 py-2 bg-secondary text-white rounded-lg hidden">返回地點</button>
     </div>
     <button id="addLocationBtn" class="px-4 py-2 bg-primary text-white rounded-lg mb-4">新增地點</button>
 
@@ -541,7 +541,7 @@
                         items: i === row && j === col ? cellData.items : [],
                         merged: false,
                         span: { row: 1, col: 1 },
-                        text: i === row && j === col ? cellData.text : ''
+                        text: i === row && j === col ? cellData.text : '' // 保留原始文字僅在第一個儲存格
                     };
                 }
             }
@@ -646,7 +646,7 @@
                 } else {
                     items.push(item);
                 }
-                cell.text = item.name; // 更新 text 屬性
+                cell.text = item.name;
                 saveData();
                 document.getElementById('itemForm').reset();
                 document.getElementById('itemModal').classList.add('hidden');
