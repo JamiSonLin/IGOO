@@ -4,7 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>櫃體置物管理應用程式</title>
+    <!-- Google Fonts: Inter -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -70,42 +72,48 @@
     </style>
 </head>
 <body class="bg-gray-50 min-h-screen p-4 font-sans">
+    <!-- 搜尋與篩選區 -->
     <div id="searchBar" class="mb-4 flex flex-col sm:flex-row gap-2">
     <input id="searchName" type="text" placeholder="搜尋物品名稱..." class="flex-1 p-2 border rounded-lg">
     <input id="searchDate" type="date" class="p-2 border rounded-lg">
     <button id="searchBtn" class="px-4 py-2 bg-primary text-white rounded-lg">搜尋</button>
+    <!-- 新增: 匯出/匯入按鈕 -->
     <button id="exportBtn" class="px-4 py-2 bg-green-500 text-white rounded-lg">匯出資料</button>
     <button id="importBtn" class="px-4 py-2 bg-blue-500 text-white rounded-lg">匯入資料</button>
     <input id="importInput" type="file" accept=".json" class="hidden">
 </div>
 
+    <!-- 新增: 地點分類頁面 -->
     <div id="locationsPage" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 mb-4"></div>
     <button id="addLocationBtn" class="px-4 py-2 bg-primary text-white rounded-lg mb-4">新增地點</button>
 
-    <div id="areasPage" class="hidden">
-        <button id="backToLocations" class="mb-4 px-4 py-2 bg-secondary text-white rounded-lg">返回地點</button>
-        <div id="areasGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 mb-4"></div>
-        <button id="addAreaBtn" class="px-4 py-2 bg-primary text-white rounded-lg mb-4">新增區域</button>
-    </div>
+    <!-- 區域分類頁面 (原 areasPage，現在隱藏在 locations 後) -->
+    <div id="areasPage" class="hidden grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 mb-4"></div>
+    <button id="addAreaBtn" class="hidden px-4 py-2 bg-primary text-white rounded-lg mb-4">新增區域</button>
 
+    <!-- 櫃體頁面 -->
     <div id="cabinetsPage" class="hidden">
         <button id="backToAreas" class="mb-4 px-4 py-2 bg-secondary text-white rounded-lg">返回區域</button>
+        <button id="backToLocationsCabinets" class="mb-4 px-4 py-2 bg-secondary text-white rounded-lg">返回地點</button>
         <h2 id="currentArea" class="text-xl font-semibold mb-4"></h2>
         <div id="cabinetsGrid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-4"></div>
         <button id="addCabinetBtn" class="px-4 py-2 bg-primary text-white rounded-lg">新增櫃體</button>
     </div>
 
+    <!-- 儲存格頁面 -->
     <div id="cellsPage" class="hidden">
         <button id="backToCabinets" class="mb-4 px-4 py-2 bg-secondary text-white rounded-lg">返回櫃體</button>
+        <button id="backToLocationsCells" class="mb-4 px-4 py-2 bg-secondary text-white rounded-lg">返回地點</button>
         <h3 id="currentCabinet" class="text-lg font-semibold mb-4"></h3>
         <div id="cellsGrid" class="grid gap-1 mb-4"></div>
         <div class="flex gap-2">
             <button id="editGridBtn" class="px-4 py-2 bg-accent text-white rounded-lg">編輯網格</button>
-            <button id="undoMergeBtn" class="px-4 py-2 bg-secondary text-white rounded-lg hidden">復原合併</button>
+            <button id="undoMergeBtn" class="px-4 py-2 bg-secondary text-white rounded-lg hidden">復原</button>
             <button id="splitCellBtn" class="px-4 py-2 bg-red-500 text-white rounded-lg hidden">分拆網格</button>
         </div>
     </div>
 
+    <!-- 物品詳情模態 -->
     <div id="itemModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
         <div class="bg-white p-6 rounded-lg w-11/12 max-w-lg max-h-[80vh] overflow-y-auto">
             <h4 id="modalTitle" class="text-lg font-semibold mb-4"></h4>
@@ -138,6 +146,7 @@
         </div>
     </div>
 
+    <!-- 圖片預覽模態 -->
     <div id="imagePreviewModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
         <div class="bg-white p-6 rounded-lg w-11/12 max-w-lg">
             <img id="previewImage" class="modal-image mx-auto" src="" alt="物品圖片">
@@ -145,6 +154,7 @@
         </div>
     </div>
 
+    <!-- 新增/編輯地點/區域/櫃體模態 (調整為通用) -->
     <div id="addModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
         <div class="bg-white p-6 rounded-lg w-11/12 max-w-md">
             <h4 id="addTitle" class="text-lg font-semibold mb-4"></h4>
@@ -164,6 +174,7 @@
         </div>
     </div>
 
+    <!-- 到期提醒模態 -->
     <div id="reminderModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
         <div class="bg-white p-6 rounded-lg w-11/12 max-w-md">
             <h4 class="text-lg font-semibold mb-4">到期提醒</h4>
@@ -226,6 +237,7 @@
             document.getElementById('areasPage').classList.add('hidden');
             document.getElementById('cabinetsPage').classList.add('hidden');
             document.getElementById('cellsPage').classList.add('hidden');
+            document.getElementById('addAreaBtn').classList.add('hidden');
             const container = document.getElementById('locationsPage');
             container.innerHTML = Object.entries(data.locations).map(([id, loc]) => `
                 <div class="bg-white p-4 rounded-lg shadow-md cursor-pointer hover:shadow-lg" onclick="enterLocation('${id}')">
@@ -266,7 +278,9 @@
             document.getElementById('areasPage').classList.remove('hidden');
             document.getElementById('cabinetsPage').classList.add('hidden');
             document.getElementById('cellsPage').classList.add('hidden');
-            const container = document.getElementById('areasGrid');
+            document.getElementById('addAreaBtn').classList.remove('hidden');
+            document.getElementById('currentArea').textContent = ''; // 清空
+            const container = document.getElementById('areasPage');
             const areas = data.locations[currentLocationId].areas;
             container.innerHTML = Object.entries(areas).map(([id, area]) => `
                 <div class="bg-white p-4 rounded-lg shadow-md cursor-pointer hover:shadow-lg" onclick="enterArea('${id}')">
@@ -475,7 +489,7 @@
             const cells = cab.cells_data || {};
             const mergedId = selectedCells[0];
             let mergedItems = [];
-            const historyEntry = { mergedId, cells: {} };
+            const historyEntry = { type: 'merge', mergedId, cells: {} };
             selectedCells.forEach(id => {
                 if (cells[id]) {
                     historyEntry.cells[id] = { ...cells[id] };
@@ -499,16 +513,21 @@
             renderCells();
         }
 
-        // 復原合併 (調整)
-        function undoMerge() {
+        // 復原最後動作
+        function undoLast() {
             if (mergeHistory.length === 0) return;
-            const lastMerge = mergeHistory.pop();
+            const lastAction = mergeHistory.pop();
             const cab = data.locations[currentLocationId].areas[currentAreaId].cabinets[currentCabinetId];
             const cells = cab.cells_data || {};
-            Object.entries(lastMerge.cells).forEach(([id, cellData]) => {
-                cells[id] = { ...cellData };
-            });
-            delete cells[lastMerge.mergedId];
+            if (lastAction.type === 'merge') {
+                Object.entries(lastAction.cells).forEach(([id, cellData]) => {
+                    cells[id] = { ...cellData };
+                });
+                delete cells[lastAction.mergedId];
+            } else if (lastAction.type === 'split') {
+                lastAction.individualIds.forEach(id => delete cells[id]);
+                cells[lastAction.mergedId] = { ...lastAction.mergedData };
+            }
             saveData();
             selectedCells = [];
             editMode = false;
@@ -516,7 +535,7 @@
             renderCells();
         }
 
-        // 分拆合併的儲存格 (修正並調整)
+        // 分拆合併的儲存格 (調整)
         function splitCell() {
             if (selectedCells.length !== 1) {
                 alert('請選取一個已合併的格子進行分拆！');
@@ -532,20 +551,20 @@
             }
             const [row, col] = cellId.split('-').map(Number);
             const { row: rowSpan, col: colSpan } = cellData.span;
-            const historyEntry = { mergedId: cellId, cells: { [cellId]: { ...cellData } } };
+            const historyEntry = { type: 'split', mergedId: cellId, mergedData: { ...cellData }, individualIds: [] };
             mergeHistory.push(historyEntry);
+            delete cells[cellId];
             for (let i = row; i < row + rowSpan; i++) {
                 for (let j = col; j < col + colSpan; j++) {
                     const newCellId = `${i}-${j}`;
-                    // 修正：保留物品在分拆後的第一個儲存格，其他為空
                     cells[newCellId] = {
-                        items: (i === row && j === col) ? cellData.items : [],
+                        items: i === row && j === col ? cellData.items : [],
                         merged: false,
                         span: { row: 1, col: 1 }
                     };
+                    historyEntry.individualIds.push(newCellId);
                 }
             }
-            delete cells[cellId];
             cab.cells_data = cells;
             saveData();
             selectedCells = [];
@@ -620,7 +639,7 @@
         }
 
         // 新增/更新物品 (調整為支援編輯)
-        document.getElementById('itemForm').addEventListener('submit', (e) => {
+        document.getElementById('itemModal').addEventListener('submit', (e) => {
             e.preventDefault();
             const item = {
                 name: document.getElementById('itemName').value.trim(),
@@ -910,7 +929,7 @@
             if (reminders.length > 0) {
                 document.getElementById('reminderList').innerHTML = reminders.map(r => `
                     <p class="cursor-pointer" onclick="navigateToItem('${r.location}', '${r.area}', '${r.cabinet}', '${r.cellId}')">
-                        ${r.location} > ${r.area} > ${r.cabinet} > ${r.cellId} > ${r.item}
+                        ${r.location} > ${r.area} > ${r.cabinet> ${r.cellId} > ${r.item}
                     </p>`).join('');
                 document.getElementById('reminderModal').classList.remove('hidden');
             }
@@ -951,17 +970,17 @@
             renderCells();
         };
 
-        // 復原合併按鈕 (無變)
+        // 復原最後動作按鈕
         document.getElementById('undoMergeBtn').onclick = () => {
-            undoMerge();
+            undoLast();
         };
 
-        // 分拆網格按鈕 (無變)
+        // 分拆網格按鈕
         document.getElementById('splitCellBtn').onclick = () => {
             splitCell();
         };
 
-        // 關閉圖片預覽 (無變)
+        // 關閉圖片預覽
         document.getElementById('closeImagePreview').onclick = () => {
             document.getElementById('imagePreviewModal').classList.add('hidden');
         };
@@ -972,7 +991,13 @@
             document.getElementById('cellsPage').classList.add('hidden');
             document.getElementById('cabinetsPage').classList.remove('hidden');
         };
+        // 新增: 返回地點頁面 (從區域頁返回)
+        if (!document.getElementById('backToLocations')) {
+            document.getElementById('areasPage').insertAdjacentHTML('afterbegin', '<button id="backToLocations" class="mb-4 px-4 py-2 bg-secondary text-white rounded-lg">返回地點</button>');
+        }
         document.getElementById('backToLocations').onclick = renderLocationsPage;
+        document.getElementById('backToLocationsCabinets').onclick = renderLocationsPage;
+        document.getElementById('backToLocationsCells').onclick = renderLocationsPage;
 
         document.getElementById('cancelAdd').onclick = () => {
             document.getElementById('addModal').classList.add('hidden');
